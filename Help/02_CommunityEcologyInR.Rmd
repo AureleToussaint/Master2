@@ -1,0 +1,843 @@
+---
+title: "Trait-based approach in ecology"
+author: "Aurele Toussaint (aurele.toussaint@cnrs.fr)"
+date: "Autumn 2024"
+output:
+  pdf_document:
+    toc: true
+  html_document:
+    number_sections: true
+    pandoc_args:
+    - "--number-sections"
+    - "--number-offset=1"
+    toc: true
+    toc_float: true
+  word_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir="/Users/aurele/Library/CloudStorage/Dropbox/courses/M2TULIP/Master2/Data")
+knitr::opts_chunk$set(message = FALSE)
+options(width = 80)
+```
+
+# Species diversity
+
+In this session we will learn how to estimate different indices to estimate species diversity. We will start by loading the data that we saved at the end of session 3 (remember that you have to set the working directory with the function `set.wd()` for R to be able to find the files!)
+
+```{r , collapse=T}
+## total number of taxa
+
+load("community.rda",verbose=T) # loading from previous 
+
+```
+
+## Species richness
+
+We are using the `vas.plants` table to find species richness: the number of taxa in a sample.
+
+```{r , collapse=T}
+dim(vas.plants) # how many samples, how many taxa in the table
+
+rowSums(vas.plants) # total sum of rows (sites) colSums works for columns
+rowSums(vas.plants>0) # total count of rows (sums logical table if non-zero values)
+
+plot(sort(rowSums(vas.plants > 0), decreasing = T), ylab= "Species richness", xlab = "Rank") # making a graph where species richness is sorted from largest to smallest (x axis)
+```
+
+## Diversity indices
+
+Often diversity indices are used which combine both richness and abundance differences (evenness). Just some examples below:
+
+Shannon diveristy: $H = - \sum_{i=1}^{S}{p_i ln(p_i)}$
+
+Inverse Simpson diversity: $D_2 = \frac{1}{\sum_{i=1}^{S}{p_i^2}}$
+
+where $p_i$ is the proportion (relative abundance) of species $i$, and $S$ is the number of species.
+
+We will use the package `vegan` for diversity calculations.
+
+```{r, collapse=T}
+
+richness <- rowSums(vas.plants > 0)  # definign richness for comparison as an object
+
+library(vegan)
+
+diversity.shannon <- diversity(vas.plants, "shannon")
+eff.richness <- exp(diversity.shannon)
+diversity.simpson  <- diversity(vas.plants, "invsimpson")
+
+pairs(data.frame(richness, eff.richness, diversity.shannon, diversity.simpson))
+
+# Evenness -- a measure of abundance similarity, can be found by dividing Shannon diversity by ln(richness). Varies between 0 and 1.
+
+evenness <- diversity.shannon / log(richness)
+
+plot(richness, evenness)
+```
+
+## Unequal sampling? Rarefaction and extrapolations
+
+If sampling has been unequal between sites (e.g. different number of individuals have been considered), this sampling difference can be taken account by rarefaction and extrapolations. Rarefaction looks how many species we expect to find when sampling randomly n individuals
+
+```{r, collapse=T}
+rarefy(tree.counts, 3)  ## NB! Works with counts!
+
+plot(rowSums(tree.counts > 0), rarefy(tree.counts, 3)) # richness of trees vs. rarefied richness estimate when randomly having 3 trees from each site.
+
+## Sometimes it is nice to see species accumulation graphs from 2,3, ... n individuals
+## First some max values
+max.tree.count <- max(rowSums(tree.counts)) # max number of trees in a site
+
+max.tree.rich <- max(rowSums(tree.counts > 0)) # max richness
+
+# Now ploting
+
+plot(NA, xlim = c(2, max.tree.count), ylim = c(0, max.tree.rich),
+     xlab="Number of trees",ylab="Species richness")
+
+# Including all 30 sites!
+for (i in 1:nrow(tree.counts)) { 
+  trees <- 2:rowSums(tree.counts[i, ])
+  rar <- rarefy(tree.counts[i, ], trees)
+  # Let's select colors randomly
+  lines(x = trees, y = rar[1, ], pch = 16,
+        col = rgb(red  = sample(100, 1),
+                  green = sample(100, 1),
+                  blue  = sample(100, 1),
+                  maxColorValue = 100))
+}
+```
+
+## Total estimated richness
+
+We might want to know what is the total expected richness (across all samples) when 1, 2, ..., n samples are included. There is a function `specaccum` which finds the mean and also error bars.
+
+```{r, collapse=T}
+plot(specaccum(tree.counts))  ## specaccum only considers presences/absences!!
+
+## Let's evaluate total richness separately for sites with low and sites with high soil pH:
+high.pH <- soil.data$pH.KCl > median(soil.data$pH.KCl)
+plot(specaccum(tree.counts[high.pH, ]), lwd = 2, col = "blue")
+plot(specaccum(tree.counts[!high.pH, ]), col = "red", add=T)
+legend("bottomright", legend = c("High pH", "Low pH"), col = c("blue", "red"), lwd = 2)
+```
+
+## Beta diversity
+
+Beta diversity explores how much the different samples overlap in their species composition. Beta diversity can be defined through the difference between the mean richness across samples and the total richness over all samples in two ways: multiplicatively or additiviely.
+
+```{r, collapse=T}
+
+# multiplicative beta diversity
+
+ncol(vas.plants) / mean(rowSums(vas.plants > 0))
+
+# additive beta diversity
+
+ncol(vas.plants) - mean(rowSums(vas.plants > 0))
+
+
+# Comparing beta diversities between High vs. low pH soil subsamples
+
+high.ph.gamma <- sum(colSums(vas.plants[high.pH,])>0)
+low.ph.gamma <- sum(colSums(vas.plants[!high.pH,])>0)
+
+high.ph.gamma
+low.ph.gamma
+
+high.ph.gamma / mean(rowSums(vas.plants[high.pH, ] > 0))
+low.ph.gamma / mean(rowSums(vas.plants[!high.pH, ] > 0))
+
+
+high.ph.gamma - mean(rowSums(vas.plants[high.pH, ] > 0))
+low.ph.gamma - mean(rowSums(vas.plants[!high.pH, ] > 0))
+
+```
+
+## Species diversity and environment
+
+We will exploring the relationship between diversity and a soil parameter -- soil pH.
+
+```{r, collapse=T}
+
+cor(soil.data$pH.KCl, richness) # just a correlation coefficient
+
+# Pearson correlation test requires normality of both variables and linearity
+hist(soil.data$pH.KCl)
+hist(richness)
+
+# Normality test: Shapiro-Wilks test
+shapiro.test(soil.data$pH.KCl)
+shapiro.test(richness)
+
+# Linear fit
+plot(soil.data$pH.KCl,richness)
+
+
+# OK. If not ok, then try to transform data (e.g. log). If this does not help, use rank correlation (e.g  Spearman)
+
+cor.o <- cor.test(soil.data$pH.KCl, richness) # recording output from a test as an object
+cor.o
+
+str(cor.o)  ## data type for test output is a list as well (i.e. a mixture of different types of objects).
+
+cor.o$p.value # retrieving a component of the list (p-value)
+
+# Regression model -- we have hypothesis of dependent (richness) and independent (pH) variables
+model <- lm(richness ~ soil.data$pH.KCl)
+
+summary(model)
+
+abline(model, col="darkred", lty = 2, lwd = 2) # adding regression line to the graph.
+
+# Regression expects that model residuals are normally distributed (i.e. testing if there is a deviation from normal distribution)
+shapiro.test(resid(model))
+
+# OK -- no deviation!
+```
+
+# Community (dis)similarity
+
+Here we explore how similar ecological communities are. With this, we mean how much their species composition overlaps. Dissimilarity is just the opposite of similarity, both measures carry the same information.
+
+## Reading and transforming community data
+
+Let's read our community data and explore abundance data. Because abundance data tends to be skewed (few species have high abundance and many have low abundance), it is often reasonable to transform abundance to get a better distribution.
+
+```{r , collapse=T}
+# Reading previously saved data
+load("community.rda", verbose = T) # loading from previous
+comm.data <- vas.plants # copy of a community data
+
+
+# Most abundant species
+
+max.spp <- which.max(colSums(comm.data))
+max.spp
+
+hist(comm.data[comm.data > 0])  # histogram of requencies (other than 0)
+hist(sqrt(comm.data[comm.data > 0])) # square root transformation
+hist(log1p(comm.data[comm.data > 0])) # log (x+1) transformation
+
+```
+
+We can see that log-tranformation gives approximately normal distribution, it downweights frequent taxa.
+
+## Community distance matrix
+
+We can measure dissimilarity by using several indices. Here are some examples.
+
+Euclidean distance:
+
+$d_{jk} = \sqrt{\sum_{i=1}^{n}{(x_{ij}-x_{ik})^2}}$
+
+where $x$ is abundance of species $i$ in sites $j$ and $k$ and $n$ is the total number of taxa.
+
+Bray-Curtis distance:
+
+$d_{jk} = \frac{\sum_{i=1}^{n}{|x_{ij}-x_{ik}|}}{\sum_{i=1}^{n}{(x_{ij}+x_{ik})}}$
+
+Euclidean distance does not have an upper limit, whereas Bray-Curtis distance is bounded between 0 and 1.
+
+With the `vegdist` function we can calculate various distance measures. It returns a triangular distance matrix, because distance from sample A to B is the same as from B to A.
+
+```{r , collapse=T}
+
+library(vegan)
+
+vegdist(comm.data[1:5, ], "euclidean") # triangular distance matrix
+
+
+# Calculating some distances and ploting against each other.
+
+
+vd1 <- vegdist(comm.data, "euclidean")
+vd2 <- vegdist(log1p(comm.data), "euclidean") # log transformation
+vd3 <- vegdist(log1p(comm.data), "bray")
+pairs(cbind(vd1, vd2, vd3))
+
+```
+
+> Explore other community (dis)similarity measures.
+
+## Hierachical clustering
+
+Using a distance matrix we can perform a clustering of our samples. Initially all samples form their own clusters, then we start to join the most similar sites and form clustering trees.
+
+Single linkage is based on the most similar members of two clusters. Complete linkage is based on the most dissimilar member of two clusters. Average linkage is based on calculating the average similarity between all members. Ward method is more complex, aiming to minimize the variance within clusters. You can check the Wildi book for more details.
+
+If we have a hierarchical cluster tree, we can always cut this to any number of clusters.
+
+```{r , collapse=T}
+
+vd <- vd2  # selecting a distance matrix for future calculations
+o.clu.s <- hclust(vd, method = "single")
+o.clu.c <- hclust(vd, method = "complete")
+o.clu.a <- hclust(vd, method = "average")
+o.clu.w <- hclust(vd, method = "ward.D2")
+
+par(mfrow = c(2, 2)) # several figures together 2 rows and 2 columns!
+
+plot(as.dendrogram(o.clu.s), main = "single")
+plot(as.dendrogram(o.clu.c), main = "complete")
+plot(as.dendrogram(o.clu.a), main = "average")
+plot(as.dendrogram(o.clu.w), main = "ward.D2")
+
+o.clu <- o.clu.w # selecting the most logical (Ward linkage)
+
+
+par(mfrow = c(1, 1)) # single figure again.
+
+## Cutting tree to parts
+
+o.grel <- cutree(o.clu, k = 5)
+plot(as.dendrogram(o.clu))
+rect.hclust(o.clu, 5, border = "red")
+
+# Similarity between sites (colors), ordered along clusters
+image(as.matrix(vd)[order(o.grel), order(o.grel)], asp = T, 
+      col = hcl.colors(8, palette = "viridis"))
+
+```
+
+## k-means clustering
+
+Not hierarchical -- just give number of clusters needed. Computation is complex, based on machine learning and iterations.
+
+```{r , collapse=T}
+
+k.o <- kmeans(comm.data, 5)
+k.o$cluster
+
+image(as.matrix(vd1)[order(k.o$cluster), order(k.o$cluster)], asp = T,
+      col = hcl.colors(8, palette = "viridis"))
+
+```
+
+## How many clusters?
+
+Above we defined 5 clusters but can we find how many clusters are optimal? One method is to inspect at what number of groups the correlation between the real distance matrix between sites and the distance matrix between clusters maximizes. This distance in clusters can only include 0 (in different cluster) and 1 (in the same cluster) but we can still calculate the correlation.
+
+```{r , collapse=T}
+
+# Lets define a vector for correlations
+correls <- numeric() # making a numeric vector
+
+for (i in 2:(nrow(comm.data) - 1)) {
+  # loop for possible cluster numbers. We do not use 1 (all in the same cluster) and number of samples (all in different clusters)
+  
+  clusters <- cutree(o.clu, k = i) # defining clusters
+  clusdist <- vegdist(table(1:30, clusters), "bray")  # dist calculates Bray distance
+  # distance is 0 (in different cluster) or 1 (same cluster)
+  
+  # table(1:30,clusters) makes a table of 30 sites vs clusters, 1 if a site is in a cluster
+  
+  correls[i] <- cor(vd, clusdist) # correlation as a measure
+  
+}
+
+plot(correls, type = "h", xlab = "No of clusers", ylab = "Correlation")
+max.corr <- which.max(correls) # which is max correlation?
+points(max.corr, correls[max.corr], pch = 16, col = "red", cex = 2)
+axis(side = 1, at = max.corr, labels = max.corr, col.axis = "red")
+
+# A nice graph!
+
+```
+
+## Human-defined forest types vs. clusterings
+
+Now we will compare how the clusters that we defined using maths are related to human-defined forest types.
+
+```{r , collapse=T}
+forest.types # this vector contains the forest type each site is categorized as
+image(as.matrix(vd1)[order(forest.types), order(forest.types)], asp = T,
+      col = hcl.colors(8, palette = "viridis"))
+
+table(o.grel, forest.types) # cross-table
+table(k.o$cluster, forest.types)
+table(k.o$cluster, o.grel)
+
+# Fisher exact test of two groups
+fisher.test(table(o.grel, forest.types))
+fisher.test(table(k.o$cluster, forest.types))
+fisher.test(k.o$cluster, o.grel)
+
+```
+
+All tests are highly significant, but there are also some differences.
+
+## Clustering also taxa
+
+Sometimes we might want to cluster taxa which ofter co-occur. For that we need to transpose our *sites x taxa* matrix using the function `t`.
+
+```{r , collapse=T}
+comm.data.2 <- log1p(comm.data[, colSums(comm.data > 0) > 3]) # omitting rare taxa which cannot co-occur much anyway
+
+tdis <- vegdist(t(comm.data.2), "euclidean")
+tdis.clus <- hclust(tdis, method = "ward.D2")
+plot(as.dendrogram(tdis.clus))
+
+
+## Plotting both dendrograms together!
+
+tabasco(comm.data.2, o.clu, tdis.clus)
+
+## Saving for future!
+save(o.grel, file = "clusters.rda")
+
+```
+
+# Ordinations
+
+Ordinations aim to put samples and taxa in order so that more similar items are close to each other. They helps to visualize the similarity in structure between ecological communities.
+
+## Taxa as axes
+
+If we have just two taxa, we can plot samples on a 2-dimensional space where the axes reflect the abundance of each of these species. Then the distance between samples is the distance between points on the plot. We can imagine a 3-dimensional space (x, y and z). However, generally we have many more taxa. Let's select the 5 taxa with the highest IndVal value and make pairwise graphs!
+
+```{r , collapse=T}
+load("community.rda") # loading from previous
+load("clusters.rda")
+comm.data <- log1p(vas.plants)
+freq.spp <- c(58, 18, 10, 27, 38) # 5 most important spp from clusters
+pairs(vas.plants[, freq.spp], pch = 16, col = rgb(0, 0, 1, 0.3))
+
+```
+
+Even with 5 taxa we have 10 pairwise graphs! Mathematically we can define as many axes as needed and put all points on this multi-dimensional space. Ordination allows to reduce the number of axes while keeping as much as possible of the original variation between sites.
+
+## Principal Component Analysis (PCA)
+
+Ordination of quantitative data, based on Euclidean distance between samples. There are different functions to perform PCA in different packages.
+
+PCA first examines the cloud of points in the multidimensional matrix and puts the fist axis along the largest variation; the following axis is the one that is perpendicular to the first one and describes the largest proportion of the variation left. This process is done (finding perpendicular axes to those previously selected), until no information is left to be explained.
+
+This method assumes that abundance of taxa are linearly related to some gradients (just increasing or decreasing). It might be true for short environmental gradient but for longer gradients unimodal responses are more likely.
+
+NB! Ordination axes does not have meaningful direction, they only show variation. You can always multiply some axis by -1 to reverse its direction!
+
+```{r , collapse=T}
+
+library(dave)
+# Let's make an artificial table with 2 taxa a and b
+test <- data.frame(a = c(1, 2, 3, 2, 1), b = c(3, 2, 2, 4, 4))
+plot(test, type = "o")
+
+# How thes same data looks in PCA axes?
+
+o.pca <- prcomp(test)
+plot(o.pca$x[,1:2], asp = 1, type = "o")
+# since we had originally 2 dimensions then we have the same shape but PC1 is describing the most variable direction.
+
+summary(o.pca)
+
+# how much of total variation is described by the principal components.
+
+
+# Now, using real community data
+o.pca <- prcomp(comm.data)
+summary(o.pca) # How much our principal components describe
+
+
+pairs(o.pca$x[, 1:4], pch = 16, cex = 0.5) # ordination plots
+
+# mostly, however, just PC1 vs. PC2 are used
+
+par(mfrow = c(1, 2))
+plot(o.pca$x[, 1:2], asp = 1, pch = o.grel) # clusters
+legend("topleft", legend = unique(o.grel), pch = unique(o.grel))
+
+
+# Eigenvectors of frequent species -- describing their contribution to principal components, can be visualized by arrows (vectors)
+x <- o.pca$rotation[freq.spp, 1]
+y <- o.pca$rotation[freq.spp, 2]
+plot(x, y, type = "n", asp = 1)
+abline(h = 0, v = 0, col = "gray")
+arrows(0, 0, x, y, length = 0.03, col = "red")
+text(x, y, colnames(comm.data)[freq.spp], cex = 0.6)
+
+
+
+par(mfrow=c(1,1))
+
+
+```
+
+## Principal Coordinates Analysis
+
+Ordination based on eigenvalues and any distance matrix. If you select Euclidean distance, it is equal to PCA.
+
+```{r , collapse=T}
+
+vegdist <- vegdist(comm.data, "euclidean")
+o.pco <- pco(vegdist)
+par(mfrow = c(1, 2))
+plot(o.pco$points[, 1:2], asp = 1, pch = o.grel, xlab = "PCO1", ylab = "PCO2")
+
+## Should be identical (NB! axis direction does not have meaning)
+
+# Now using Bray-Curtis distance
+
+plot(o.pco$points[, 1:2], asp = 1, pch = o.grel, xlab = "PCO1", ylab = "PCO2")
+vegdist <- vegdist(comm.data, "bray")
+o.pco <- pco(vegdist)
+plot(o.pco$points[, 1:2], asp = 1, pch = o.grel)
+
+
+par(mfrow = c(1, 1))
+```
+
+## Correspondence Analysis
+
+This technique tries to ordinate both samples and taxa in parallel. It expects unimodal response curves of taxa and aims to find the weighted averages for taxa and sites (the synonym to Correspondence Analysis is Reciprocal Averaging).
+
+```{r , collapse=T}
+o.ca <- cca(comm.data)
+
+summary(o.ca)$cont$importance[, 1:3]
+
+plot(o.ca$CA$u[, 1:2], pch = o.grel, asp = 1)
+
+plot(o.ca) # Biplot where both sites and taxa are given (their averaged locations)
+
+# Adding manually sites and species to obtain a more clean image
+plot(o.ca, type = "n")
+points(o.ca, display = "sites", cex = 0.8, pch = o.grel, col = "red")
+text(o.ca, display = "spec", cex = 0.7, col = "blue", 
+     select = freq.spp)
+
+plot(o.ca, type = "n", xlim = c(-2, 3.5))
+points(o.ca, display = "sites", cex = 0.8, pch = 16, col = "red")
+ordipointlabel(o.ca, cex = 0.7, display = "species", col = "blue", add = T,
+               select = freq.spp) ## Tries to optimize the location of the text labels to  avoid overlap
+
+tabasco(comm.data, o.ca) # ordering tables using CA for both samples and taxa.
+
+
+```
+
+## Nonmetric Multidimensional Scaling (NMDS)
+
+Not based on maximum variation but on shifting iteratively of objects within a low number of axes so that the distance between samples is maximally kept. The algorithm starts from a random order or PCA. Compares the difference between real distance and the distance within the ordination space (this difference is called "stress"). Often used nowadays because computing is not limiting any more. A rule of thumb: stress ca 0.05 means an excellent representation in reduced dimensions, 0.1 is great, 0.2 is satisfactory, and stress \>0.3 means a poor representation.
+
+We also explore how to limit clusters and draw species richness on the ordination graph.
+
+```{r , collapse=T}
+o.mds <- metaMDS(comm.data, distance = "euclidean", k = 3)
+stressplot(o.mds, vegdist) # stress is the distance of points from the line! Looks fine!
+
+plot(o.mds) # biplot, samples taxa
+
+plot(o.mds$points, pch = o.grel) # only samples
+
+ordihull(o.mds, o.grel, col = 1:5) # connecting clusters
+
+## Adding species diversity to plot
+plot(o.mds$points, pch = o.grel, col = o.grel)
+ordisurf(o.mds, diversity(comm.data), col = "grey", main = "Shannon diversity",
+         add = T)
+ordihull(o.mds, o.grel, col = 1:5)
+legend("bottomleft", legend = unique(o.grel), col = unique(o.grel),
+       pch = unique(o.grel), lwd = 1)
+
+```
+
+> Try also ordispider and ordiellipse functions
+
+<details>
+
+<summary>Answer</summary>
+
+```{r error=T,include=T, collapse=T}
+plot(o.mds$points, pch = o.grel, col = o.grel)
+ordispider(o.mds, o.grel, col = unique(o.grel))
+ordiellipse(o.mds, o.grel, col = unique(o.grel),
+            kind="se", lwd=2, con = 0.95)
+
+```
+
+</details>
+
+## 3D visualizations
+
+```{r , collapse=T}
+library(vegan3d)
+
+ordiplot3d(o.mds, type = "h", pch = o.grel, 
+           , col = o.grel)
+ordirgl(o.mds, col = o.grel, pch = o.grel) # Should open a new window!
+
+
+save(o.mds, file = "ordi.rda")
+
+```
+
+# Combining community and environmental data
+
+The main aim of this lesson is to examine how the community structure (i.e. species richness and composition) is linked to environmental variables.
+
+## Reading data from previous days
+
+```{r , collapse=T}
+library(dave)
+load("community.rda") # loading from previous 
+load("clusters.rda")
+load("ordi.rda")
+
+```
+
+## Exploring and combining similar soil data
+
+In the previous class, we used ordination methods to put samples and taxa in order, so that similar items are close to each other. Ordination methods can also be used with correlated environmental data, so that we obtained a combined measurement of some environmental variable. An alternative method is to standardisize and average measures. Let's look at soil chemistry.
+
+```{r , collapse=T}
+
+cor(soil.data[,-5])  # N, P and K strongly correlated
+pairs(soil.data[,-5])
+
+# An option to use PCA for soils 
+soil.pca = prcomp(soil.data[,2:4], scale.=T)# scale.=T standardizes units
+soil.pca1=soil.pca$x[,1] 
+
+# Averaging all three after rescaling
+npk.scale=scale(soil.data[,2:4]) # rescaling mean 0 and sd 1
+soil.nut=rowSums(npk.scale)
+
+plot(soil.nut,soil.pca1) # NB! PCA axes can be changed!
+soil.pca1=soil.pca1*-1
+
+```
+
+> Make PCA with all soil variables found in envir.txt and examine how well the PC scores are correlated with the initial soil variables.
+
+<details>
+
+<summary>Answer</summary>
+
+```{r error=T,include=T, collapse=T}
+envir=read.table("envir.txt")
+names(envir)
+env.pca = prcomp(envir[,6:12], scale.=T)
+all.soil.pca1=scores(env.pca$x)[,1] 
+cor(all.soil.pca1,envir[,6:12])
+
+```
+
+</details>
+
+## Environment within clusters
+
+Instead of working with the original environmental data, we are going to use our new variable ´soil.pca1´ as a synthetic variable that reflects nutrient availabity in our sites. We will test whether environment differs between samples representing different clusters. For this, we will first make some box plots, then we will perform an anova test and then we will examine whether the assumptions of anova are met.
+
+```{r , collapse=T}
+## Using clusters and soil data (Soil pH as an example)
+
+boxplot(soil.pca1 ~as.factor(o.grel),col=2:6,ylab="Soil Nutrients",xlab="Clusters")
+
+# ANOVA test
+
+o.anova=aov(soil.pca1 ~ as.factor(o.grel))
+
+anova(o.anova)
+
+# testing anova assumptions: 
+
+# 1. residuls of the model must be normally distributed
+
+shapiro.test(resid(o.anova)) # p > 0.05
+
+# 2. homogeneity of variances among groups
+
+bartlett.test(soil.pca1, as.factor(o.grel)) # p > 0.05
+
+## If ANOVA assumptions are not met, we can make non-parametric test
+## for example Kruskal-Wallis rank sum test
+
+kruskal.test(soil.pca1 ~ as.factor(o.grel))  ## Not significantly different
+
+
+## Same with soil pH
+
+o.anova=aov(soil.data$pH.KCl ~ as.factor(o.grel))
+shapiro.test(resid(o.anova)) # OK
+bartlett.test(soil.data$pH.KCl, as.factor(o.grel)) # OK
+
+anova(o.anova) #  significance
+TukeyHSD(o.anova) # comparison of pairs, Tukey test
+
+```
+
+> Parametric tests (e.g. ANOVA) are usually more powerful than non-parametric tests (e.g. Kruskal-Wallis) but results are often similar. Test how soil pH is related to clusters using Kruskal-Wallis test.
+
+<details>
+
+<summary>Answer</summary>
+
+```{r error=T,include=T, collapse=T}
+kruskal.test(soil.data$pH.KCl ~ as.factor(o.grel))
+```
+
+</details>
+
+## Environment related to ordination
+
+We ca use the function `envfit` to visually explore the correlation of ordination results with environmental parameters.
+
+```{r, collapse=T}
+o.ev=envfit(o.mds,soil.data[,-5])
+o.ev
+plot(o.mds$points,pch=o.grel)
+plot(o.ev,add=T) # Adding correlations to graph
+
+
+ordisurf(o.mds,soil.data$pH.KCl,add=T)
+ordisurf(o.mds,soil.pca1,add=T,col="green")
+
+oo=ordisurf(o.mds,soil.data$pH.KCl,bubble=5) # visualizing environment with circle size
+plot(oo,what="persp") # 3D image of study variable (z) along ordination axes (x and y)
+
+```
+
+## Constrained ordination
+
+Exploring only variation that can be explained by the selected environmental variables (=constraints). Comparing the taxonomic space vs. environmental space.
+
+```{r, collapse=T}
+## Linear relationships (similar to PCA)
+o.rda=rda(vas.plants~pH.KCl+N..+P.mg.kg+K.mg.kg,data=soil.data,scale=T) # here formulas are suggested, scale=T to put all measures in same units
+plot(o.rda)
+
+# More simple graph
+plot(o.rda,type="n")
+points(o.rda,"sites",col="red",pch=16)
+points(o.rda,"cn") # constraints arrow
+text(o.rda,"cn")
+
+anova(o.rda) # overall significance by randomizations
+anova(o.rda,by="mar") # each parameter separately
+anova(o.rda,by="axis") # significance along axes
+
+## Canonical Correspondence Analaysis is similar but expect unimodal responses
+o.cca=cca(vas.plants~pH.KCl+N..+P.mg.kg+K.mg.kg,data=soil.data)
+anova(o.cca)
+
+```
+
+> Plot cca figure and test the overall model, each soil parameter separately and along axes.
+
+<details>
+
+<summary>Answer</summary>
+
+```{r error=T,include=T, collapse=T}
+plot(o.cca,type="points")
+anova(o.cca) # overall significance by randomizations
+anova(o.cca,by="mar") # each parameter separately
+anova(o.cca,by="axis")
+```
+
+</details>
+
+## Multivariate ANOVA based on dissimilarities
+
+Partition dissimilarities among different sources of variation. No ordination is used; instead the multivariate space is considered. Significance values are obtained from permutation tests. Also known as PERMANOVA (function `adonis`).
+
+```{r, collapse=T}
+
+o.adonis=adonis(vas.plants~pH.KCl+N..+P.mg.kg+K.mg.kg,data=soil.data,method="manhattan",by="mar")
+o.adonis
+
+```
+
+> Use another community distance measure and look if you can get same results.
+
+<details>
+
+<summary>Answer</summary>
+
+```{r error=T,include=T, collapse=T}
+o.adonis=adonis(vas.plants~pH.KCl+N..+P.mg.kg+K.mg.kg,data=soil.data,method="bray",by="mar")
+o.adonis
+```
+
+</details>
+
+## Species Distribution modelling (SDM)
+
+Exploring if species presences/absences are related to some parameters. Can be used to predict changes in distribution if the environment changes (e.g. due to global change).
+
+```{r, collapse=T}
+
+# Selecting a common taxa (SDM cannot work with very rare taxa)
+pa=vas.plants[,"RUBUsaxa"]>0 # presence/absence
+plot(pa~soil.data$pH.KCl)
+
+m=lm(pa~soil.data$pH.KCl) # linear model
+summary(m)
+abline(m,col="blue") # does not fit well, we need curvlinera model ...
+
+m=glm(pa~soil.data$pH.KCl,family=binomial)
+summary(m)
+pr.glm=predict(m,type="response")
+
+points(pr.glm~soil.data$pH.KCl,col="red")
+
+# Now all soil data
+m=glm(pa~.,soil.data[,-5],family=binomial) #~. means that all parameters from data are included
+summary(m)
+pr.glm=predict(m,type="response")
+
+#Predicted distribution map
+plot(xy[,-3],cex=pr.glm*2.5+1)
+points(xy[pa>0,-3],pch=16,cex=0.5,col="darkgreen") # Actual presence-absence
+
+
+# Regression trees, can handle more complex relationships. Belongs to the machine learning method!
+library(tree)
+
+o.tree=tree(pa~.,data=soil.data[,-5]) 
+plot(o.tree)
+text(o.tree)
+
+pr.tree=predict(o.tree) # using the tree to predict 
+
+plot(xy[,-3],cex=pr.tree*2.5+1)
+points(xy[pa>0,-3],pch=16,cex=0.5,col="darkgreen")
+
+## Scenarios for future changes
+
+## drop of pH 0.5 units
+
+new.soil=soil.data[,-5]
+new.soil[,1]=new.soil[,1]-0.5
+pr.tree.1=predict(o.tree,new.soil)
+plot(xy[,-3],cex=pr.tree.1*2.5+1)
+points(xy[pa>0,-3],pch=16,cex=0.5,col="darkgreen")
+
+points(xy[pa>0 & pr.tree.1 < 0.5,-3],pch=16,cex=0.5,col="red")
+
+# Red points show sites where the species will be probability < 0.5 after environmental change (likely going extinct)
+
+
+```
+
+> Try a scenario when soil pH is rising 0.5 points.
+
+<details>
+
+<summary>Answer</summary>
+
+```{r error=T,include=T, collapse=T}
+new.soil=soil.data[,-5]
+new.soil[,1]=new.soil[,1]+0.5
+pr.tree.1=predict(o.tree,new.soil)
+plot(xy[,-3],cex=pr.tree.1*2.5+1)
+points(xy[pa>0,-3],pch=16,cex=0.5,col="darkgreen")
+
+points(xy[pa>0 & pr.tree.1 < 0.5,-3],pch=16,cex=0.5,col="red")
+
+```

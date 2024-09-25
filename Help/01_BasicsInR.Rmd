@@ -1,0 +1,808 @@
+---
+title: "Trait-based approach in ecology"
+author: "Aurele Toussaint (aurele.toussaint@cnrs.fr)"
+date: "Autumn 2024"
+output:
+  pdf_document:
+    toc: true
+  html_document:
+    number_sections: true
+    pandoc_args:
+    - "--number-sections"
+    - "--number-offset=1"
+    toc: true
+    toc_float: true
+  word_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir="/Users/aurele/Library/CloudStorage/Dropbox/courses/M2TULIP/Master2/Data")
+knitr::opts_chunk$set(message = FALSE)
+options(width = 80)
+```
+
+# Scripts and data in R
+
+## Working directory
+
+In which folder (working directory) you have your files?
+
+```{r , collapse=T, R.options=list(max.print=10)}
+wd=getwd() # get working directory
+wd
+setwd("/Users/aurele/Library/CloudStorage/Dropbox/courses/M2TULIP/Master2/Data") # change to your favorite folder!
+dir() # lists files
+
+```
+
+Sometimes it is needed to give double backslashes: `"c:\\mp\\doc\\"`
+
+## Keeping track of objects in the memory, saving R objects
+
+You can check what objects you currently have and remove unnecessary.
+
+```{r , collapse=T}
+# Making some objects
+a=3
+diversity=c(18,27,10,22,25,8,12)
+soil.ph=c(4.5,6.4,3.9,5.3,5.9,3.2,4.2)
+soil.type=c("mineral","mineral","peat","mineral","mineral","peat","peat")
+
+ls()
+ls.str() # more information
+
+save(diversity,soil.ph,soil.type,file="my.data.Rda") # saving so tahat R can use later
+## NB! Other software cannot read these files!
+
+rm(diversity,soil.ph,soil.type) # removes objects not needed
+ls()
+load("my.data.Rda") # loads what has been saved in R
+ls()
+```
+
+> Explore with `?rm` how to remove all objects in the memory. WARNING, use carefully!
+
+<details>
+
+<summary>Answer</summary>
+
+```{r collapse=T}
+# currently we can still use this. Sometimes it is good to start your session with that expression
+rm(list=ls())
+
+# We now need to load our saved data again:
+load("my.data.Rda")
+```
+
+</details>
+
+## Creating own scripts
+
+Scripts are just text files with codes. In RStudio you can add new R Script file. When saving, use extension `.R`, for example `my_first_script.R`
+
+Add comments for your own, and for others with `#` mark
+
+Run your script by highlighting a part and then Cntr+Enter (=run!)
+
+```{r ,error=T, collapse=T}
+## My script, 
+
+# a is a variable ....
+a = 5
+
+print("Hello! This is my first script")
+
+## end of my script
+```
+
+> Save the text above to a text file with name "my_first_script.R".
+
+Now we can call the same script.
+
+```{r , error=T, collapse=T}
+a=NA
+a
+
+source("my_first_script.R") # runs your script from the file
+
+a # a has been defined in the script!
+```
+
+## Conditions in scripts
+
+Does something only if conditions are fulfilled. The proportion of script for which the condition applies can be given between special parentheses `{` and `}`
+
+```{r , collapse=T}
+soil="peat" # try to change to "mineral"
+
+if (soil=="peat") {      # commands for conditions are between {}
+  print("Has been wet")
+}
+
+answer=ifelse(soil.type=="peat","wet","dry") # conditions, if true, if not
+print(answer)
+```
+
+> Use function `ifelse` with `plot` to have scatterplot between `soil.ph` and `diversity` and select symbol colors depending on `soil.type`
+
+<details>
+
+<summary>Answer</summary>
+
+```{r collapse=T}
+plot(soil.ph,diversity,col=ifelse(soil.type=="peat","brown","black"))
+```
+
+</details>
+
+## Loops in scripts
+
+Loops will make a similar thing n times, for example with each element of a vector. The part of script which is repeated should be marked with `{` and `}`. Actually in R often you can avoid loops since you can have logical questions to whole vectors.
+
+```{r , collapse=T}
+for (i in 1:7) { # i is index the loop is between {}
+  print(soil.type[i]) # within loop you need to add print to get output
+}
+
+for (i in soil.type) { # now i is an element of the vector
+  print(i)
+} 
+
+soils.high.div=NULL   # NULL is empty object, but we can define it!
+for (i in 1:length(diversity)) { 
+  if (diversity[i]>20) soils.high.div=c(soils.high.div,soil.type[i])
+} 
+soils.high.div
+
+```
+
+> Please make `soils.high.div` without loop.
+
+<details>
+
+<summary>Answer</summary>
+
+```{r collapse=T}
+soils.high.div=soil.type[diversity>20] # if possible, avoid loops!
+```
+
+</details>
+
+## Data frames
+
+We can have a single table which can include different types of data (e.g. numeric and character). We can also specify a grouping variable factor. When createing a data.frame, most non-numerical components are defined as factors. You can access individual columns of data.frame by name or by number or defining with data_frame_name\$column_name
+
+```{r , collapse=T}
+
+
+
+my.data=data.frame(soil.ph,soil.type,diversity) # creating data frame
+my.data
+str(my.data) # Note that in data-frame texts are transformed to factors with numeric levels!
+
+my.data[,2] # accessing by rows and columns
+
+names(my.data)
+colnames(my.data) # same!
+my.data[,"soil.type"]  # accessing a column by name
+my.data$soil.type # accessing by $ symbol
+
+as.character(my.data$soil.type) # transforming factors to characters
+as.numeric(my.data$soil.type) # to text: factor levels!
+
+my.data$high.diversity=my.data$diversity>20 # adds a new logical column
+my.data
+```
+
+## Reading and exploring data from text file
+
+We generally read data from files. We can read text files by setting column limits (space, comma, semicolon etc.), defining headers (column titles), column for row names etc. etc.
+
+Save file ´envir.txt´to your R working directory!
+
+```{r , collapse=T}
+envir=read.table("envir.txt",header=T, sep=" ",row.names = 1)
+
+# Let's explore the file!
+
+ncol(envir) # number of columns
+nrow(envir) # ... rows
+dim(envir)  # dimensions
+names(envir) # names of columns (colnames works as well)
+row.names(envir) # if there are row names
+str(envir) 
+head(envir) # just upper rows
+summary(envir) # short summary of each variable
+
+envir[1:4,6:12] # short subset
+
+my.cols=c(6:9,5)  # pH, N, P, K and site name
+soil.data=envir[,my.cols] # subset by selected columns to new data.frame
+head(envir[,-c(1:2,4,6:12)]) ## leaving out some columns (not "-" before "c")
+
+my.rows=envir$pH.KCl>median(envir$pH.KCl) # logical vector
+my.rows
+high.ph.soils=soil.data[my.rows,] 
+low.ph.soils=soil.data[!my.rows,] # note !
+
+high.ph.soils.1=subset(soil.data, pH.KCl>median(pH.KCl)) # subset function
+
+high.ph.soils==high.ph.soils.1 # comparing all values individually
+all.equal(high.ph.soils,high.ph.soils.1) # comparing two objects
+
+sample(nrow(soil.data)) # random order 
+
+rand.soils=soil.data[sample(nrow(soil.data)),]
+
+```
+
+> make a separate data.frame xy for coordinates lon and lat and site name.
+
+<details>
+
+<summary>Answer</summary>
+
+```{r error=T,include=T, collapse=T}
+xy=envir[,c(1,2,5)]
+```
+
+</details>
+
+## Writing data tables to text files
+
+```{r , collapse=T}
+
+write.table(xy,file="coordinates.txt") # default settings
+
+write.table(soil.data,file="soil.data.csv", sep=";", row.names = F) # own settings
+
+```
+
+## R packages
+
+R has some basic packages but you need to install packages for special tasks. Let's install package "readxl" which allows to read excel files.
+
+```{r , collapse=T}
+    
+# install.packages("readxl") # if you do not have this, please omit # and install
+
+library(readxl) # even if installed, you should call the package library each R session with the function library
+
+test=read_excel("excel.xlsx")
+test # a bit strange format
+test=as.data.frame(test) # making a siple data.frame
+test
+```
+
+# Manipulating data tables
+
+How to merge tables and how to split tables.
+
+## Merging data tables
+
+Be very careful when merging data tables by combining them by columns: the order of the rows must be the same in both tables! It is a good practice to try to make some graphs to visualise and check manually some values to see that everything matches.
+
+When reading files, be sure that these files are present in the working directory
+
+```{r , collapse=T}
+# Cleaning the memory before starting
+rm(list=ls())
+
+## Reading files we saved last time:
+xy = read.table("coordinates.txt") # default settings
+soil.data = read.table("soil.data.csv", sep = ";", header = T) # defining delimiting character (here ";") and that we have column names (header=T)
+
+## As we did last time, let's split soil data into two using the function subset
+high.ph.soils = subset(soil.data, pH.KCl > median(pH.KCl))
+low.ph.soils = subset(soil.data, pH.KCl <= median(pH.KCl))
+
+combine1 = cbind(xy, soil.data) # putting together columns
+head(combine1)
+
+combine2 = rbind(high.ph.soils, low.ph.soils) # putting together rows
+dim(combine2)
+
+combine3 = cbind(xy, combine2) # trying again, but ....
+plot(combine1$lon, combine1$pH.KCl)
+points(combine3$lon, combine3$pH.KCl, pch = "x", col = "green") # adding points, symbol "x"
+head(combine3) # note that site names from xy and new soil data do not match!!
+
+# The 'merge' function can help in merging two datasets that share a common column with unique identifiers, like the "Proovi.nimi" one in our example:
+combine3 = merge(xy, combine2, by = "Proovi.nimi") # merging by common column
+head(combine3)
+points(combine3$lon, combine3$pH.KCl, pch = "x", col = "red") # now OK!
+
+# an alternative with the function 'order':
+combine4 = cbind(xy[order(xy$Proovi.nimi), ], combine2[order(combine2$Proovi.nimi), ])
+points(combine4$lon, combine4$pH.KCl, pch = "+", col = "blue")
+```
+
+## Community data: sites x taxa matrix
+
+Community data is usually a matrix of **taxa x sites**. In R it is tradition to have rows as sites (samples) and columns as species (taxa). In the field often the opposite direction is used in books, so be careful with this when transcribing your data into R. Here we read a table of forest floor vascular plants from 10x10 m plots.
+
+```{r , collapse=T}
+
+vas.plants = read.table("vascular.plants.txt")
+
+dim(vas.plants)
+
+vas.plants[1:5, 1:5] # taxa as rows, sites as columns
+
+vas.plants = t(vas.plants) # transposing the matrix (replacing rows and columns)
+
+vas.plants = as.data.frame(vas.plants) # transposing loose data.frame sturcture, putting back
+vas.plants[1:5, 1:5]
+
+image(t(vas.plants),
+      axes = F,
+      ylab = "Sites",
+      xlab = "Taxa") ## Quick visualisation of a table
+
+apply(vas.plants, 1, FUN = max)  # a function can be applied to each row (1) or column (2). Here we find max of each row.
+
+
+```
+
+> Use function `apply` and calculate max values for each taxon in the object `vas.plants`.
+
+<details>
+
+<summary>Answer</summary>
+
+```{r error=T,include=T, collapse=T}
+apply(vas.plants, 2, FUN = max)
+```
+
+</details>
+
+## Long data format
+
+Data matrices might have too many zeros since most taxa are rare. Because of this, a "long" format, with columns indicating site, taxon and some abundance measure is often used. Here we read an example of long format from trees in forest sites from an excel file.
+
+```{r , collapse=T}
+library(readxl) # package to read excel files
+
+data = read_excel("trees.xlsx")
+data = as.data.frame(data)      # to make the file data.frame
+head(data)
+
+# ala = site, puuliik = species (codes of tree species)
+
+tree.counts = table(data[, c(1, 4)])  # counts of occurrences (number of trees)
+tree.height = xtabs(H ~ ala + puuliik, data = data) # sum of H (height)
+
+str(tree.counts) # from function table we obtain a bit special format, we better make it a simple data.frame by function as.data.frame
+tree.counts = as.data.frame.matrix(tree.counts)
+str(tree.counts)
+
+```
+
+## NA in data
+
+For missing values in a table, `NA` is automatically used.
+
+```{r , collapse=T}
+
+summary(data) # Note D2
+complete.cases(data) # do we have real values for a row
+
+data[!complete.cases(data), ] # not complete cases (note "!")
+
+is.na(data$D2) # where we have NA values?
+
+```
+
+## Combining community and site data
+
+Before we analyse community and site data together, it is suggested to check if we have the same order in both tables. We can list rownames and site names side by side
+
+```{r , collapse=T}
+
+
+# Checking that the order is the same
+
+cbind(row.names(vas.plants), as.character(xy$Proovi.nimi))
+
+# Species distribution maps
+
+i=3  # id of a species
+plot(xy[,1:2],cex=0.3) ## Coordinates of sites and small points
+points(xy[,1:2], cex=vas.plants[,i]*2,col="green") # cex changes point size relative to 1
+title(main=colnames(vas.plants)[i]) # adding title taking the i-th colname from the community data
+
+
+```
+
+## Some text manipulations
+
+If we have names of sites and species, we might also need some text manipulations to cut, paste, search and replace parts of texts.
+
+```{r , collapse=T}
+
+sites1 = row.names(vas.plants)
+sites1
+
+nchar(sites1) # how many characters (length of the text)
+
+sites2 = as.character(soil.data$Proovi.nimi) # Making character from a factor data type
+sites2
+
+substring(sites1, 2, 4) # substring, from 2nd to 4th character
+
+paste(1:30, sites2, sep = "-") # pasting different texts (non-text will be converted)
+
+
+grep("mae", sites1) # numbers of cases with a search string
+sites1[grep("mae", sites1)]
+sites1[grep("\\.", sites1)] # some characters as "." "?" have a special meaning but we can search them by leading "\\"
+
+gsub("mae", "oru", sites1) # replacing a search string
+
+```
+
+> Make a character vector from `sites1` without leading "X"
+
+<details>
+
+<summary>Answer</summary>
+
+```{r error=T,include=T, collapse=T}
+substring(sites1, 2, 9999)
+```
+
+</details>
+
+## Manipulating sets
+
+We make a set of forest type codes. In the database we have 4 digits but we use a broader classification of three digits. Then we can find how two sets differ.
+
+```{r , collapse=T}
+
+forest.types = read.table("envir.txt")$forest.types
+forest.types
+
+forest.types = as.character(forest.types) # numbers do not have meaning, just codes
+forest.types
+
+forest.types = substring(forest.types, 1, 3)
+forest.types
+
+unique(forest.types) # set of unique values
+table(forest.types) # frequency table
+
+# separating 2 groups according to soil pH
+forest.types.1 = forest.types[soil.data$pH.KCl < 3]
+forest.types.2 = forest.types[soil.data$pH.KCl >= 3]
+
+forest.types.1
+forest.types.2
+
+union(forest.types.1, forest.types.2) # from two sets (here same as unique of all)
+intersect(forest.types.1, forest.types.2) # in both
+setdiff(forest.types.2, forest.types.1) # in set 2 but not in set 1
+setdiff(forest.types.1, forest.types.2) # None!
+
+is.element(forest.types.2, forest.types.1) # asking which in set 2 are present in set 1
+
+```
+
+## Making our own function to combine two datasets
+
+Sometimes we want to combine different files which include different sites but species composition do not match. I have not found a good function in R for that. But we can make our own functions!
+
+```{r , error=T, collapse=T}
+
+# We start with some artificial examples, just two species in both sets
+
+t1 = data.frame(a = c(1, 0, 1), b = c(2, 2, 0))
+t2 = data.frame(b = c(3, 0), c = c(0, 4))
+
+t1
+t2
+
+
+
+t2[, setdiff(names(t1), names(t2))] = 0 # adding now species only found in table1 to table2 as zeros
+t1[, setdiff(names(t2), names(t1))] = 0 # same for table1
+
+t1
+t2
+
+rbind(t1, t2) # now mergind two tables (rbind looks names!)
+
+
+# Let's make a function from script above!
+
+tables.join = function(t1, t2) {
+  # asking two tables which got names t1 and t2
+  t2[, setdiff(names(t1), names(t2))] = 0
+  t1[, setdiff(names(t2), names(t1))] = 0
+  t12 = rbind(t1, t2)
+  return(t12) # returns value from function
+}
+
+tables.join(t1, t2)
+
+t12 # objects within a functions are not kept in memory!
+
+
+```
+
+When using this function you can specify your input objects (let's imagine that these are called `a.table` and `b.table`) either by defining function parameters: `tables.join(t1=a.table,t2=b.table)`, or just by position `tables.join(a.table,b.table)`
+
+## Saving community data for the future
+
+```{r , error=T, collapse=T}
+save(vas.plants,
+     tree.counts,
+     forest.types,
+     xy,
+     soil.data,
+     tables.join,
+     file = "community.rda")
+```
+
+
+</details>
+
+
+</details>
+
+# Presenting data
+
+Default plots in R are generally very basic and not very suitable for publication. However, one of the characteristics of R is that plots are highly customizable, so that you can basically create any plot you are able to think of *as long as you are able to write the necessary code*. In this lecture we are going to explore a few ways to make our plots look a bit better.
+
+## Copy to and from clipboard
+
+```{r , collapse=T}
+
+load("community.rda")
+soil.data[1:5,]
+library(clipr)
+
+```
+
+```{r , collapse=T, eval  = F}
+write_clip(soil.data[1:5,]) ## you can paste now to excel or word! 
+
+#While the write_clip alternative should work for all systems, Windows users can also try this (which doesn't require loading any package):
+
+# write.table(soil.data[1:5,], "clipboard", sep="\t") 
+
+#Now we can read from the memory (whatever it is in the computer clipboard):
+read.table("clipboard")
+
+o <- cor(soil.data[, -5])
+o
+write_clip(round(o, 3))
+
+# Paste to your work now!
+
+```
+
+## Some tricks and tips with graphs
+
+```{r , collapse=T}
+diff.ph <- dist(soil.data$pH.KCl)
+diff.rich <- dist(rowSums(vas.plants > 0))
+
+plot(diff.ph, diff.rich) # an ugly plot. 
+# The axis titles are not very informative, and the text is quite small
+# Lots of overlapping points, it is hard to see where there is more density of points
+# Units in y axis are written in vertical, but horizontal is a bit easier to read (and often required)
+# Many times we dont want a full box around our plot
+# It would be better to have a title
+# We could include some summary statistic, for example the correlation
+
+# Making it better step by step
+
+plot(diff.ph,diff.rich,
+     xlab="Difference in soil pH",
+     ylab="Difference in plant richness",
+     cex.lab=1.2,  # size of axis labels
+     pch=16, # dots
+     col=rgb(0,0,0,0.25), # grey semi-transparent color
+     axes=F) # no axes, we will add them later
+
+axis(side = 1, #Axis 1. 1 means bottom; 2 is left, 3 is top, 4 is right
+     lwd = 1.5, #lwd controls axis thickness 
+     cex.axis = 1.2, # cex.axis change font size
+     tcl = 0.5) # tcl determines size and orientation of tickmarks
+axis(2, lwd = 1.5, cex.axis = 1.2, las = 1, tcl = 0.5) # same for y axis, las=1 give axis numbers horizontal
+box(lwd = 2, bty = "l")  # making axes lines 
+
+mtext(paste0(letters[1], ") Distance scatterplot"), # adding title (you could  use LETTERS for capital letters)
+      side = 3, # same as with axis: 3  is "top"
+      cex = 1.5, # size of text
+      line = 0.5, #how much above the plot we want it
+      adj = 0) # left-justified (0.5  is centered, 1 is right)
+
+
+r  <- round(cor(diff.ph, diff.rich), 2)
+
+legend("topright", #you can also use x and y coordinates, but this is more  general
+       legend = paste("r =", r), 
+       bty = "n", #we dont want a box around the legend
+       cex = 1.5)
+```
+
+## Identifying coordinates and points from graph
+
+```{r, collapse=T, eval=F, echo=T}
+## Find coordinates by clicking on the graph (number is how many)
+locator(1)
+
+## Find a point (same things as in inital plot). Esc for ending
+identify(dist(soil.data$pH.KCl), dist(rowSums(vas.plants > 0)))
+```
+
+## Graph windowns size and margins
+
+```{r}
+
+plot(diff.ph, diff.rich,
+     xlab = "Difference in soil pH",
+     ylab = "Difference in plant richness")
+
+
+par(pty = "s") # square graph always
+
+plot(diff.ph, diff.rich,
+     xlab = "Difference in soil pH",
+     ylab = "Difference in plant richness")
+
+
+par(mar = c(5, 3, 1, 1))
+
+# graph margins in lines form c(bottom, left, top, right). 
+# Default is c(5, 4, 4, 2) + 0.1
+
+par(cex=1.5) # general size value for all things
+
+plot(diff.ph,diff.rich,
+     xlab="Difference in soil pH",
+     ylab="Difference in plant richness")
+
+par(pty="m") # not square, maximal plotting region
+
+#You can reset graphic settings to default ones (and close the current plot) by executing dev.off()
+dev.off()
+
+```
+
+## Colors
+
+```{r}
+
+plot(
+  NA,
+  xlim = c(0, 1),
+  ylim = c(0, 1),
+  axes = F,
+  xlab = "",
+  ylab = ""
+) # An empty plot that we will fill
+colors()[1:50] # color names
+
+colUse <- "blueviolet"
+points(0.1, 0.9, pch = 17, cex = 5, col = colUse)
+
+# Transparency by using rgb (red, green, blue) and transparency measure alpha
+colUse = rgb(0.5, 0.5, 0, alpha = 0.5)
+points(c(0.1, 0.14), c(0.5, 0.5), pch = 18, cex = 5, col = colUse)
+
+# Making a color name semi-transparent
+index <- 1
+for (i in seq(0, 1, length = 30)) {
+  col.t = as.vector(col2rgb(colors()[index])) / 255
+  col = rgb(col.t[1], col.t[2], col.t[3], alpha = i)  # alpha is defining transparency (0....1)
+  points(i, i, pch = 16, cex = 5, col = col)
+  index <- index + 1
+}
+
+# Color palettes
+plot(NA, xlim = c(1, 10), ylim = c(1, 11), axes = F, xlab = "", ylab = "")
+topo.colors(10)
+points(1:10, rep(1, 10), col = topo.colors(10)[1:10], pch = 16, cex = 5)
+points(1:10, rep(2, 10), col = rainbow(10)[1:10], pch = 16, cex = 5)
+points(1:10, rep(3, 10), col = heat.colors(10)[1:10], pch = 16, cex = 5)
+points(1:10, rep(4, 10), col = terrain.colors(10)[1:10], pch = 16, cex = 5)
+points(1:10, rep(5, 10), col = cm.colors(10)[1:10], pch = 16, cex = 5)
+points(1:10, rep(6, 10), col = gray.colors(10)[1:10], pch = 16, cex = 5)
+# mixing own colors
+points(1:10, rep(7, 10), col = colorRampPalette(c("red", "yellow"))(10)[1:10], 
+       pch = 16, cex = 5)
+
+points(1:10, rep(8, 10), col = colorRampPalette(c("red", "yellow", "blue", "black"))(10)[1:10], 
+       pch = 16, cex = 5)
+
+library(viridis)
+
+# visible in grey tones as well! Seen by color-blind people!
+
+points(1:10, rep(9, 10), col = viridis(10)[1:10], pch = 16, cex = 5)
+points(1:10, rep(10, 10), col = magma(10)[1:10], pch = 16, cex = 5)
+points(1:10, rep(11, 10), col = cividis(10)[1:10], pch = 16, cex = 5)
+```
+
+## Several graphs together
+
+We have already explored `par(mfrow = c(2, 2))` but sometimes we need more complicated designs.
+
+```{r , collapse=T}
+par(oma = c(3, 1, 3, 1)) # margins outside the combined graph (bottom, left, top, right)
+
+# design matrix
+
+m = matrix(c(1, 1, 1, 
+             2, 2, 3),
+           byrow = T,
+           nrow = 2, ncol = 3)
+m
+
+layout(m)
+layout.show(3) # just checking
+par(cex = 1)   # Select general size factor
+par(mar = c(0, 0, 0, 0)) # margins for each of the individual graphs (bottom, left, top, right)
+
+library(maps) # global maps
+map("world", fill = T,  col = cividis(12),  border = F,  ylim = c(-60, 85))
+box()
+mtext("a) Graph one", 3, adj = 0, line = 0.5)
+
+par(mar=c(4,6,1,1)) # we give more space for axis titles
+plot(diff.ph,diff.rich,
+     xlab="Difference in soil pH",
+     ylab="Difference in\nplant richness",
+     col=viridis(24)[diff.rich+1])
+mtext("b) Graph two",3,adj=0,line=0.5)
+
+hist(diff.rich,main="",xlab="Difference in\nplant richness", col=plasma(12))
+mtext("c) Graph three",3,adj=0,line=0.5)
+
+mtext("General title", 3, outer = T, line = 0, cex = 1.5)
+mtext("General footnote", 1, outer = T, line = 0, cex = 0.8, adj = 1)
+
+layout(1) # ending layout
+
+
+# Overlapping graphs
+par(mar = c(4, 4, 8, 2))
+plot(diff.ph, diff.rich,
+     xlab = "Difference in soil pH",
+     ylab = "Difference in plant richness")
+
+par(fig = c(0, 1, 0.8, 1), new = T) # in relative space of the previous window 0..1
+par(mar = c(0, 4, 0.5, 2))
+hist(diff.ph, axes = F, xlab = "", ylab = "", main = "", col = "grey")
+
+par(fig = c(0, 1, 0, 1), new = T) # new graph over all
+
+par(mar = c(0, 0, 0, 0)) # no edges
+plot(c(0, 1), c(0, 1), ann = F, bty = 'n', type = 'n', xaxt = 'n', yaxt = 'n') # empty graph 
+
+text(x = 0.5, y = 0.5, "All this is an example", cex = 3.5, srt = 45, 
+     col = rgb(1, 0, 0, 0.5), family = "serif")
+
+```
+
+## Saving graphs to files
+
+```{r}
+
+pdf("my.graph.pdf", width = 12, height = 12)  # size in inches
+
+## Copy your three graphs here
+
+dev.off() # closing (saving) pdf file
+
+
+png("my.graph.png", width = 6, height = 6, units = "in", res = 600) # resolution dpi
+
+## Copy graphs on top of each other here
+
+dev.off() # closing
+```
