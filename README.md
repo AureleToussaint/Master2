@@ -1,12 +1,6 @@
-###############################################################################
-#                   Trait-based approach in Community Ecology
-#
-#
-#
-#                            Theory and applications
-#
-#
-#
+###############################################################################``
+                   Trait-based approach in Community Ecology
+                          Theory and applications
 ###############################################################################
 
 This 'GitHub' repository contain all ressources.
