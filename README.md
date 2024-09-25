@@ -21,3 +21,5 @@ This 'GitHub' repository contain all ressources.
 - Help for R training
     - First steps in R. Basic R commands (for beginners)
     - Common analyses in community analyses in R 
+    
+- Evaluation
