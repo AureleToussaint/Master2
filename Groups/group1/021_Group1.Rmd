@@ -29,6 +29,12 @@ options(width = 80)
 ```{r eval=FALSE}
 ## step 1. load the data.
 library(readxl)
+library(missForest)
+library(fundiversity)
+library(funspace)
+library(geometry)
+library(FD)
+
 data_plant <- read_excel("data_plant.xlsx",sheet = "TRAITdata")
 
 ## step 2. data exploration
@@ -86,18 +92,13 @@ pca.trait  =  princomp(logscale.traits, cor  =  TRUE)
 trait_space_global  =  funspace(x  =  pca.trait, PCs  =  c(1, 2), n_divisions  =  300)
 plot(x  =  trait_space_global, type  =  "global", quant.plot  =  TRUE, arrows  =  TRUE, arrows.length  =  0.9)
 
-if (!require("geometry")) install.packages("geometry", repos = "http://cran.us.r-project.org")
-library(geometry)
-library(FD)
-library(funspace)
-
 # Step 1: Define a function to calculate FRic using the convex hull
 calculate_fric <- function(traits,comm) {
   traits = traits[names(which(apply(comm,2,sum)>0)),]
   comm = comm[,names(which(apply(comm,2,sum)>0))]
   # Check if there are enough points to form a convex hull
   if (nrow(traits) > ncol(traits)) {
-    fric <- dbFD(traits,comm,calc.FRic = TRUE, calc.CWM = TRUE, calc.FDiv = F)$FRic
+    fric <- fd_fric(traits,comm)[,2]
   } else {
     fric <- 0  # If not enough points, FRic is 0
   }

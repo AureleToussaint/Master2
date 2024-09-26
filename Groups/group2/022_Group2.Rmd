@@ -27,8 +27,15 @@ options(width = 80)
 ```
 
 ```{r eval=FALSE}
+
+library(missForest)
+library(fundiversity)
+library(funspace)
+library(geometry)
+library(FD)
+
 ## step 1. load the data.
-mammalData = read.table("originalData.csv", header=T, sep = ",")[, -1]
+mammalData = read.table("originalData.csv", header=T, sep = ",")
 
 ## step 2. data exploration
 # Here we use common R function to explore the files
@@ -48,7 +55,7 @@ summary(mammalData) # short summary of each variable
 columnsTraits = 1:(which(colnames(mammalData) == "Eigen.1")-1)
 mammalData[,columnsTraits] = log10(mammalData[, columnsTraits])
 #NOTE: All traits are kept for imputation
-library(missForest)
+
 columsImputation = 1:(which(colnames(mammalData) == "IUCN")-1)
 mammalsTraitslogImputed=as.matrix(missForest(xmis= mammalData[, columsImputation])$ximp)
 mammalTraitsImputed = mammalTraitsMissing = mammalData
@@ -64,7 +71,7 @@ mammalTraitsImputed = data.frame(mammalTraitsImputed, IUCN=mammalData$IUCN)
 mammalTraitsMissing = data.frame(mammalTraitsMissing, IUCN=mammalData$IUCN)
 
 ## step 3. Functional space
-library(funspace)
+
 # Run PCA
 pca.trait  =  princomp(mammalTraitsImputed[, c(1:8)], cor  =  TRUE)
 
@@ -73,10 +80,7 @@ trait_space_global  =  funspace(x  =  pca.trait, PCs  =  c(1, 2), n_divisions  =
 plot(x  =  trait_space_global, type  =  "global", quant.plot  =  TRUE, arrows  =  TRUE, arrows.length  =  0.9)
 
 # Null model to remove threatened species
-if (!require("geometry")) install.packages("geometry", repos = "http://cran.us.r-project.org")
-library(geometry)
-library(FD)
-library(funspace)
+
 
 # Step 1: Define a function to calculate FRic using the convex hull
 calculate_fric <- function(traits,comm) {
@@ -84,7 +88,7 @@ calculate_fric <- function(traits,comm) {
   comm = comm[,names(which(apply(comm,2,sum)>0))]
   # Check if there are enough points to form a convex hull
   if (nrow(traits) > ncol(traits)) {
-    fric <- dbFD(traits,comm,calc.FRic = TRUE, calc.CWM = TRUE, calc.FDiv = F)$FRic
+    fric <- fd_fric(traits,comm)[,2]
   } else {
     fric <- 0  # If not enough points, FRic is 0
   }
@@ -135,7 +139,11 @@ compare_fric_with_null <- function(traits,comm, num_simulations = 999) {
 
 # Step 4: Trait and community
 traits <- pca.trait$scores[,c(1,2)]
-
+rownames(traits) = mammalData$X
+comm = matrix(1,ncol=nrow(traits),nrow = 2,
+              dimnames = list(c("ALL","IUCN"),rownames(traits) ))
+mammalData$Threat = ifelse(mammalData$IUCN%in%c("CR","EN","VU"),1,0)
+comm["IUCN",mammalData[mammalData$Threat == 1,1]] = 0
 # Compare observed FRic with null model
 result <- compare_fric_with_null(traits, comm, num_simulations = 99)
 

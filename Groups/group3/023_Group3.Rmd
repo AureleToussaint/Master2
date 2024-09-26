@@ -27,6 +27,11 @@ options(width = 80)
 ```
 
 ```{r eval=FALSE}
+library(missForest)
+library(fundiversity)
+library(funspace)
+library(geometry)
+library(FD)
 ## step 1. load the data.
 traits = read.csv("traitsFish.csv", h = T, sep = ",")
 
@@ -55,11 +60,6 @@ pca.trait  =  princomp(traitScale, cor  =  TRUE)
 # Building the functional trait space (using the first two PCs)
 trait_space_global  =  funspace(x  =  pca.trait, PCs  =  c(1, 2), n_divisions  =  300)
 plot(x  =  trait_space_global, type  =  "global", quant.plot  =  TRUE, arrows  =  TRUE, arrows.length  =  0.9)
-
-if (!require("geometry")) install.packages("geometry", repos = "http://cran.us.r-project.org")
-library(geometry)
-library(FD)
-library(funspace)
 
 # Step 1: Define a function to calculate FRic using the convex hull
 calculate_fric <- function(traits,comm) {
@@ -117,7 +117,17 @@ compare_fric_with_null <- function(traits,comm, num_simulations = 999) {
 }
 
 # Step 4: Trait and community
-traits <- pca.trait$scores[,c(1,2)]
+traitsPCA <- pca.trait$scores[,c(1,2)]
+namesFish = NULL
+for(i in 1:length(table(traitsALL$species))){
+  namesFish = c(namesFish,paste0(names(table(traitsALL$species)[i]),seq(1:table(traitsALL$species)[i])))
+}
+rownames(traits) = namesFish
+comm = matrix(0,ncol=nrow(traitsALL),nrow = length(unique(traitsALL$species)),
+              dimnames = list(unique(traitsALL$species),namesFish))
+for(i in unique(traitsALL$species)){
+  comm[rownames(comm)%in%i,grep(i,colnames(comm))] = 1
+}
 
 # Compare observed FRic with null model
 result <- compare_fric_with_null(traits, comm, num_simulations = 99)
@@ -133,4 +143,61 @@ plot(x = trait_space_comm, type = "groups",
      pnt.cex = 0.1, 
      pnt.col = rgb(0.2, 0.8, 0.1, alpha = 0.2), axis.title.line = 1)
 
+
+###
+hist(traits[which(traits$species %in%"AMNPER"),"BD"])
+# library
+library(ggplot2)
+library(dplyr)
+library(hrbrthemes)
+
+# Build dataset with different distributions
+data <- data.frame(
+  type = c( rep("AMNPER", table(traits$species)[1]),
+            rep("CRASTE", table(traits$species)[2])),
+  value = c( traits[which(traits$species %in%"AMNPER"),"BD"],
+             traits[which(traits$species %in%"CRASTE"),"BD"] )
+)
+
+# Represent it
+p <- data %>%
+  ggplot( aes(x=value, fill=type)) +
+    geom_density( color="#e9ecef", alpha=0.6, position = 'identity') +
+    scale_fill_manual(values=c("#69b3a2", "#404080")) +
+    theme_ipsum() +
+    labs(fill="")
+
+traitsPCA <- as.data.frame(pca.trait$scores[,c(1,2)])
+rownames(traitsPCA) = traits$species
+traitsPCA$species = traits$species
+# Build dataset with different distributions
+data <- data.frame(
+  type = c( rep("AMNPER", table(traits$species)[1]),
+            rep("CRASTE", table(traits$species)[2])),
+  value = c( traitsPCA[which(traitsPCA$species %in%"AMNPER"),"Comp.1"],
+             traitsPCA[which(traitsPCA$species %in%"CRASTE"),"Comp.1"] )
+)
+
+# Represent it
+p <- data %>%
+  ggplot( aes(x=value, fill=type)) +
+    geom_density( color="#e9ecef", alpha=0.6, position = 'identity') +
+    scale_fill_manual(values=c("#69b3a2", "#404080")) +
+    theme_ipsum() +
+    labs(fill="")
+
+data <- data.frame(
+  type = c( rep("AMNPER", table(traits$species)[1]),
+            rep("CRASTE", table(traits$species)[2])),
+  value = c( traitsPCA[which(traitsPCA$species %in%"AMNPER"),"Comp.2"],
+             traitsPCA[which(traitsPCA$species %in%"CRASTE"),"Comp.2"] )
+)
+
+# Represent it
+p <- data %>%
+  ggplot( aes(x=value, fill=type)) +
+    geom_density( color="#e9ecef", alpha=0.6, position = 'identity') +
+    scale_fill_manual(values=c("#69b3a2", "#404080")) +
+    theme_ipsum() +
+    labs(fill="")
 ```
